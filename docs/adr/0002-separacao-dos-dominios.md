@@ -1,4 +1,4 @@
-# ADR-0001 — Adoção de arquitetura baseada em microserviços
+# ADR-0002 — Separação dos Domínios
 
 ## Status
 
@@ -6,149 +6,104 @@ Aceito
 
 ## Contexto
 
-A solução deve atender ao fluxo de negócio de um comerciante que precisa
-controlar seu fluxo de caixa diário por meio de lançamentos financeiros e
-disponibilizar o saldo diário consolidado.
+O cenário possui duas necessidades de negócio principais:
 
-O desafio define duas capacidades principais:
+- Controle dos lançamentos financeiros realizados pelo comerciante;
+- Consolidação diária desses lançamentos para obtenção do saldo consolidado.
 
-- controle de lançamentos;
-- consolidação diária.
+Embora exista relação entre essas necessidades, elas possuem responsabilidades, regras e características técnicas distintas.
 
-Além da separação das capacidades, existem requisitos não funcionais que
-influenciam diretamente a arquitetura:
+O controle dos lançamentos é responsável pelo registro e manutenção dos eventos financeiros, enquanto a consolidação diária possui como responsabilidade processar esses eventos e disponibilizar uma visão consolidada por data.
 
-- o serviço de controle de lançamentos não deve ficar indisponível caso o
-  serviço de consolidação diária esteja indisponível;
-- o serviço de consolidação diária deve suportar picos de 50 requisições por
-  segundo;
-- a perda máxima de requisições durante esses picos deve ser de 5%.
-
-Dessa forma, a arquitetura precisa permitir a separação das responsabilidades
-e, principalmente, evitar que uma indisponibilidade no serviço de consolidação
-cause indisponibilidade no serviço responsável pelo controle dos lançamentos.
+Manter essas responsabilidades em um único serviço aumentaria o acoplamento entre os processos e faria com que alterações ou indisponibilidades na consolidação pudessem impactar diretamente o registro dos lançamentos.
 
 ## Decisão
 
-Adotar uma arquitetura baseada em microserviços, separando as duas principais
-capacidades de negócio em serviços independentes:
+Separar a solução em dois domínios funcionais principais:
 
-- `MicroService.ControleLancamentos`
-- `MicroService.ConsolidadoDiario`
+### Domínio de Controle de Lançamentos
 
-Cada serviço será responsável por seu respectivo contexto de negócio e poderá
-evoluir e ser dimensionado de forma independente.
+Responsável por:
 
-A comunicação entre os serviços será realizada de forma assíncrona, evitando
-uma dependência síncrona de disponibilidade entre o controle de lançamentos e
-a consolidação diária.
+- Criar lançamentos;
+- Alterar lançamentos;
+- Excluir lançamentos;
+- Garantir idempotência das operações;
+- Persistir os dados dos lançamentos;
+- Publicar eventos relacionados às alterações dos lançamentos.
 
-## Motivações
+Esse domínio será implementado pelo serviço `MicroService.ControleLancamentos`.
 
-A principal motivação para a adoção de microserviços é o requisito de
-independência de disponibilidade entre as capacidades.
+### Domínio de Consolidação Diária
 
-O serviço de controle de lançamentos precisa continuar operando mesmo quando
-o serviço de consolidação diária estiver indisponível. A separação em
-serviços independentes permite que uma falha em um contexto não interrompa
-diretamente a operação do outro.
+Responsável por:
 
-A separação também permite que as capacidades sejam dimensionadas de acordo
-com suas características próprias de utilização. O requisito de pico de
-50 requisições por segundo está associado ao serviço de consolidação diária,
-portanto sua capacidade pode ser tratada independentemente da capacidade
-necessária para o controle de lançamentos.
+- Consumir os eventos de lançamentos;
+- Manter uma projeção dos dados necessários para consolidação;
+- Gerar o consolidado diário;
+- Disponibilizar o saldo e os totais por data.
 
-Outro fator é a separação de responsabilidades. Controle de lançamentos e
-consolidação diária possuem objetivos e comportamentos distintos e, portanto,
-podem ser tratados como capacidades independentes dentro da solução.
+Esse domínio será implementado pelo serviço `MicroService.ConsolidadoDiario`.
 
-## Alternativas consideradas
+A comunicação entre os domínios será assíncrona, utilizando mensageria. O domínio de consolidação não será uma dependência síncrona do domínio de controle de lançamentos.
 
-### Monólito
+## Justificativa
 
-Um monólito poderia concentrar as funcionalidades de controle de lançamentos
-e consolidação diária em uma única aplicação.
+A separação permite que cada domínio evolua de forma independente e que suas características técnicas sejam tratadas de acordo com sua responsabilidade.
 
-Essa alternativa teria como vantagem uma menor complexidade operacional,
-porém criaria um maior acoplamento entre as capacidades.
+O serviço de controle de lançamentos deve priorizar consistência das operações de escrita e disponibilidade para o registro dos lançamentos.
 
-Uma indisponibilidade da aplicação poderia afetar simultaneamente o controle
-de lançamentos e a consolidação diária, dificultando o atendimento do
-requisito de disponibilidade independente.
+O serviço de consolidação, por sua vez, pode utilizar uma projeção específica para consultas e processamento das informações, permitindo otimizações independentes do modelo transacional de lançamentos.
 
-Por esse motivo, a alternativa foi descartada.
+A comunicação assíncrona também reduz o acoplamento entre os serviços. Dessa forma, uma indisponibilidade temporária do serviço de consolidação não impede que novos lançamentos sejam registrados.
 
-### Monólito modular
-
-Um monólito modular permitiria separar internamente as responsabilidades de
-controle de lançamentos e consolidação diária, mantendo uma única unidade de
-execução.
-
-Embora forneça uma melhor separação lógica que um monólito tradicional, as
-capacidades ainda compartilhariam a mesma unidade de implantação e os mesmos
-recursos computacionais.
-
-Considerando a necessidade de independência de disponibilidade e a
-possibilidade de escalabilidade independente, essa alternativa não foi
-adotada.
-
-### SOA
-
-Uma arquitetura orientada a serviços poderia atender à necessidade de
-separação entre as capacidades.
-
-Entretanto, para o escopo apresentado, as capacidades estão suficientemente
-delimitadas para serem tratadas como serviços independentes, tornando a
-abordagem de microserviços mais adequada à granularidade escolhida.
-
-### Serverless
-
-Uma arquitetura serverless poderia ser utilizada para determinados
-componentes da solução, especialmente em cenários orientados a eventos.
-
-Porém, o requisito apresentado não exige esse modelo de execução e sua
-adoção como arquitetura principal acrescentaria complexidade sem uma
-necessidade explícita do cenário.
+Essa decisão também permite escalar os serviços de forma independente conforme a necessidade de cada domínio.
 
 ## Consequências
 
 ### Positivas
 
-- Separação das capacidades de negócio.
-- Independência de disponibilidade entre os serviços.
-- Possibilidade de escalabilidade independente.
-- Evolução independente dos serviços.
-- Isolamento de falhas entre os contextos.
-- Maior flexibilidade para definir tecnologias e estratégias específicas para
-  cada capacidade.
+- Separação clara de responsabilidades;
+- Menor acoplamento entre os domínios;
+- Evolução independente dos serviços;
+- Escalabilidade independente;
+- Possibilidade de utilizar modelos de persistência adequados a cada responsabilidade;
+- Maior resiliência diante da indisponibilidade de um dos serviços;
+- Facilidade para evoluir a consolidação para uma arquitetura orientada a projeções.
 
 ### Negativas
 
-- Maior complexidade operacional em relação a um monólito.
-- Necessidade de mecanismos de comunicação entre serviços.
-- Necessidade de observabilidade distribuída.
-- Necessidade de tratamento de falhas de comunicação.
-- Consistência entre os serviços passa a exigir mecanismos específicos de
-  integração.
-- Maior complexidade para desenvolvimento, testes e troubleshooting.
+- A solução passa a possuir maior complexidade operacional;
+- É necessário utilizar mensageria e mecanismos de processamento assíncrono;
+- Existe consistência eventual entre o registro do lançamento e sua representação na consolidação;
+- Monitoramento, tratamento de falhas e reprocessamento passam a ser responsabilidades necessárias da arquitetura.
 
-## Relação com os requisitos do desafio
+## Alternativas consideradas
 
-A decisão atende diretamente ao requisito de existência de um serviço para
-controle de lançamentos e outro para consolidação diária.
+### Serviço único
 
-Também atende ao requisito não funcional que determina que o serviço de
-controle de lançamentos não deve ficar indisponível caso o serviço de
-consolidação diária esteja indisponível.
+Manter controle de lançamentos e consolidação dentro de uma única aplicação.
 
-A separação permite ainda tratar de forma independente o requisito de
-capacidade do serviço de consolidação diária, que deve suportar picos de
-50 requisições por segundo com perda máxima de 5%.
+Foi descartado por aumentar o acoplamento entre responsabilidades distintas e dificultar a evolução e a escala independente dos processos.
+
+### Serviços separados com comunicação síncrona
+
+Separar os serviços, mas realizar chamadas HTTP síncronas entre controle de lançamentos e consolidação.
+
+Foi descartado porque criaria uma dependência de disponibilidade entre os serviços. Uma indisponibilidade da consolidação poderia impactar o fluxo de lançamento.
+
+### Separação por domínio com comunicação assíncrona
+
+Separar os serviços e utilizar eventos para integração entre os domínios.
+
+Foi escolhida por proporcionar menor acoplamento, independência de disponibilidade e possibilidade de evolução e escala independentes.
 
 ## Resultado esperado
 
-A arquitetura deverá permitir que cada capacidade de negócio opere de forma
-independente, reduzindo o acoplamento entre os serviços e permitindo que
-disponibilidade, escalabilidade e evolução sejam tratadas de acordo com as
-características específicas de cada capacidade.
+A arquitetura passa a possuir dois contextos funcionais bem definidos:
+
+`Controle de Lançamentos` → registra e mantém os lançamentos.
+
+`Consolidação Diária` → processa os eventos e mantém a visão consolidada.
+
+A separação estabelece uma fronteira clara entre as responsabilidades de negócio e cria uma base para evolução independente dos dois domínios.
