@@ -290,13 +290,10 @@ Exclusões são propagadas para a projeção por meio de soft delete.
 
 ## 10. Postman
 
-A collection está disponível em:
+As collections estão disponíveis em:
 
-    src/postman/Desafio-Arquitetura.postman_collection.json
-
-O environment local está disponível em:
-
-    src/postman/Desafio-Arquitetura-Local.postman_environment.json
+    src/postman/MicroService.ConsolidadoDiario - v1.postman_collection.json
+    src/postman/MicroService.ControleLancamentos - v1.postman_collection.json
 
 No Postman:
 
