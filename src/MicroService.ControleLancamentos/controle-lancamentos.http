@@ -1,0 +1,6 @@
+@controle_lancamentos_HostAddress = http://localhost:5210
+
+GET {{controle_lancamentos_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
