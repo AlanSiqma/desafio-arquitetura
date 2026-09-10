@@ -1,6 +1,6 @@
 # Desafio de Arquitetura - Microservices
 
-## 0. Objetivo
+## Objetivo
 
 Esta solução implementa uma arquitetura de microserviços para controle de lançamentos financeiros e consolidação diária do fluxo de caixa.
 
@@ -18,7 +18,7 @@ A solução foi construída considerando:
 - escalabilidade;
 - documentação das decisões arquiteturais.
 
-A arquitetura também considera a integração com sistemas corporativos e legados, como o Protheus, como parte da evolução do ecossistema.
+A arquitetura também contempla uma jornada de experiência composta por Micro Frontend e BFF, representada na arquitetura alvo, enquanto a implementação atual está concentrada nos serviços de backend e infraestrutura necessários para demonstrar o cenário proposto.
 
 ---
 
@@ -53,15 +53,13 @@ Os principais componentes são:
 - Loki;
 - Jaeger.
 
-A arquitetura também considera o Protheus como sistema corporativo/legado no contexto de integração da solução.
-
 A estrutura principal do projeto está organizada em:
 
 - src;
 - docs;
 - README.md.
 
-Os arquivos de infraestrutura, testes de carga, configuração do Keycloak e Postman estão organizados dentro de src.
+Os arquivos de infraestrutura, testes de carga, configuração do Keycloak e Postman estão organizados dentro de `src`.
 
 ---
 
@@ -71,17 +69,17 @@ A arquitetura da solução é representada pelo diagrama C4 abaixo.
 
 ![Diagrama C4 da solução](docs/c4.drawio.png)
 
-O diagrama apresenta os principais atores, sistemas, serviços, persistências, mensageria, autenticação e componentes de observabilidade.
+O diagrama apresenta os principais atores, a jornada de experiência, serviços, persistências, mensageria, autenticação e componentes de observabilidade.
 
 A documentação detalhada da arquitetura e das decisões técnicas está disponível no diretório `docs`.
 
 [Visualizar o diagrama C4 em tamanho original](docs/c4.drawio.png)
 
---- 
+---
 
 ## 4. Subindo a solução
 
-Os arquivos Docker Compose estão dentro de src.
+Os arquivos Docker Compose estão dentro de `src`.
 
 A partir da raiz do projeto, execute:
 
@@ -167,7 +165,7 @@ Para os testes locais é utilizado o usuário:
 
     usuario-teste
 
-O fluxo de usuário e senha utilizado pela collection do Postman é destinado exclusivamente ao ambiente local.
+O fluxo de usuário e senha utilizado pelas collections do Postman é destinado exclusivamente ao ambiente local.
 
 Em ambientes produtivos devem ser utilizados mecanismos apropriados de autenticação, gerenciamento de credenciais e secrets.
 
@@ -286,6 +284,10 @@ A projeção utiliza controle de versão para evitar que eventos antigos sobresc
 
 Exclusões são propagadas para a projeção por meio de soft delete.
 
+O fluxo principal pode ser representado como:
+
+    PostgreSQL → Transactional Outbox → RabbitMQ → Consumer → MongoDB
+
 ---
 
 ## 10. Postman
@@ -293,24 +295,19 @@ Exclusões são propagadas para a projeção por meio de soft delete.
 As collections estão disponíveis em:
 
     src/postman/MicroService.ConsolidadoDiario - v1.postman_collection.json
+
     src/postman/MicroService.ControleLancamentos - v1.postman_collection.json
 
 No Postman:
 
-1. Importe a collection.
-2. Importe o environment.
-3. Selecione o environment Desafio Arquitetura - Local.
-4. Abra a pasta 01 - Autenticação.
-5. Execute Login - Controle de Lançamentos.
-6. Execute Login - Consolidado Diário.
-7. Execute os endpoints de Controle de Lançamentos.
-8. Execute os endpoints de Consolidado Diário.
+1. Importe as collections disponíveis em `src/postman`.
+2. Execute o fluxo de autenticação utilizando o Keycloak.
+3. Execute os endpoints de Controle de Lançamentos.
+4. Execute os endpoints de Consolidado Diário.
 
-Os scripts da collection armazenam automaticamente os tokens retornados pelo Keycloak.
+Os endpoints exigem os respectivos tokens e permissões configurados no Keycloak.
 
-Após a criação de um lançamento, o identificador retornado é armazenado automaticamente na variável:
-
-    lancamentoId
+Após a criação de um lançamento, o identificador retornado pode ser utilizado para as operações subsequentes de consulta, alteração e exclusão.
 
 ---
 
@@ -318,8 +315,8 @@ Após a criação de um lançamento, o identificador retornado é armazenado aut
 
 Para validar o fluxo completo da solução:
 
-1. Login - Controle de Lançamentos.
-2. Login - Consolidado Diário.
+1. Login no Controle de Lançamentos.
+2. Login no Consolidado Diário.
 3. Criar lançamento.
 4. Obter lançamento.
 5. Atualizar lançamento.
@@ -330,7 +327,7 @@ Para validar o fluxo completo da solução:
 
 Esse fluxo permite observar a propagação assíncrona entre:
 
-PostgreSQL → Transactional Outbox → RabbitMQ → Consumer → MongoDB
+    PostgreSQL → Transactional Outbox → RabbitMQ → Consumer → MongoDB
 
 Após a exclusão, o lançamento permanece na projeção MongoDB marcado como excluído, não sendo considerado pelo consolidado diário.
 
@@ -370,7 +367,7 @@ O teste utiliza k6 e executa:
 
 - 50 requisições por segundo;
 - durante 60 segundos;
-- total esperado de aproximadamente 3.000 requisições.
+- aproximadamente 3.000 requisições.
 
 Para executar com o k6 instalado localmente:
 
@@ -416,7 +413,7 @@ Para subir a stack completa:
 
 Fluxo de observabilidade:
 
-Aplicações → OpenTelemetry Collector → ferramentas de observabilidade
+    Aplicações → OpenTelemetry Collector → ferramentas de observabilidade
 
 O Collector recebe sinais via OTLP.
 
@@ -426,7 +423,7 @@ Os sinais são encaminhados para:
 - métricas → Prometheus;
 - logs → Loki.
 
-O Grafana utiliza Prometheus e Loki como fontes de dados para dashboards.
+O Grafana utiliza Prometheus e Loki como fontes de dados para visualização.
 
 Principais interfaces:
 
@@ -485,6 +482,8 @@ A solução também utiliza:
 
 As configurações locais são simplificadas para facilitar a execução do desafio.
 
+Para produção, recomenda-se utilizar gerenciamento seguro de secrets, credenciais específicas por ambiente, HTTPS e políticas de segurança mais restritivas.
+
 ---
 
 ## 17. Arquitetura
@@ -506,6 +505,8 @@ RabbitMQ realiza a comunicação assíncrona entre os componentes.
 
 A arquitetura também contempla:
 
+- jornada com Micro Frontend;
+- BFF;
 - Keycloak;
 - OpenTelemetry;
 - observabilidade centralizada;
@@ -520,19 +521,19 @@ A representação visual da arquitetura está disponível na documentação e no
 
 ## 18. Documentação
 
-A documentação arquitetural está organizada em docs.
+A documentação arquitetural está organizada em `docs`.
 
 Principais documentos:
 
-- requisitos.md
-- dominios-e-capacidades.md
-- arquitetura-alvo.md
-- seguranca.md
-- observabilidade.md
-- testes.md
-- custos.md
-- proximos-passos.md
-- adr/
+- `requisitos.md`
+- `dominios-e-capacidades.md`
+- `arquitetura-alvo.md`
+- `seguranca.md`
+- `observabilidade.md`
+- `testes.md`
+- `custos.md`
+- `proximos-passos.md`
+- `adr/`
 
 Os ADRs registram as principais decisões arquiteturais e suas justificativas.
 
@@ -560,7 +561,6 @@ Entre as principais evoluções previstas estão:
 
 - evolução da implementação do Micro Frontend da jornada;
 - evolução do BFF;
-- integração estruturada com o Protheus e demais sistemas corporativos;
 - API Gateway;
 - Dead Letter Queue;
 - consolidação incremental orientada a eventos;
@@ -574,7 +574,8 @@ Entre as principais evoluções previstas estão:
 - Infrastructure as Code;
 - Kubernetes;
 - alta disponibilidade;
-- Disaster Recovery.
+- Disaster Recovery;
+- evolução dos SLOs e alertas de observabilidade.
 
 Os detalhes dessas evoluções estão documentados em:
 
@@ -603,9 +604,10 @@ Antes de uma implantação produtiva devem ser avaliados:
 - configuração produtiva do Keycloak;
 - configuração produtiva do RabbitMQ;
 - dimensionamento dos bancos de dados;
-- observabilidade das integrações externas;
-- estratégia de integração com sistemas legados;
+- observabilidade das integrações;
 - SLOs, SLIs, RTO e RPO.
+
+As decisões de infraestrutura devem ser proporcionais aos requisitos de disponibilidade, volume, criticidade e custo do ambiente.
 
 ---
 
@@ -635,13 +637,13 @@ O realm utilizado é:
 
 ### 5. Importar o Postman
 
-Utilize os arquivos disponíveis em:
+Utilize as collections disponíveis em:
 
     src/postman/
 
 ### 6. Executar o fluxo funcional
 
-Login → Criar → Consultar → Alterar → Consultar → Consolidar → Excluir → Consolidar
+    Login → Criar → Consultar → Alterar → Consultar → Consolidar → Excluir → Consolidar
 
 ### 7. Consultar a observabilidade
 
@@ -671,6 +673,8 @@ RabbitMQ e Transactional Outbox reduzem o acoplamento entre os serviços e aumen
 
 Keycloak fornece autenticação e autorização, enquanto OpenTelemetry, Jaeger, Prometheus, Grafana e Loki fornecem a infraestrutura de observabilidade.
 
-A solução também possui testes automatizados, validação funcional, teste de carga e documentação das principais decisões arquiteturais.
+A arquitetura também contempla a evolução da jornada por meio de Micro Frontend e BFF, mantendo as capacidades de negócio isoladas nos serviços de domínio.
 
-A arquitetura foi estruturada para atender ao cenário atual sem impedir sua evolução para novas jornadas, integrações corporativas, maior escala e requisitos operacionais mais rigorosos.
+A solução possui testes automatizados, validação funcional, teste de carga e documentação das principais decisões arquiteturais.
+
+A arquitetura foi estruturada para atender ao cenário atual sem impedir sua evolução para novas jornadas, maior escala e requisitos operacionais mais rigorosos.
